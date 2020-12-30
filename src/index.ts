@@ -28,7 +28,7 @@ const log = winston.createLogger({
         new winston.transports.File({ filename: "debug.log", level: "debug" })
     ]
 });
-let config: { database: string };
+let config: { database: string, port: number };
 config = JSON.parse(fs.readFileSync("./config.json", { encoding: "utf-8" }));
 
 const sequelize = new Sequelize(config.database, { logging: log.debug.bind(log) });
@@ -220,7 +220,7 @@ app.get("/makeCoffee", (req, res) => {
     res.sendStatus(418);
 });
 
-app.listen(3000, () => { console.log("Listening!") });
+app.listen(config.port, () => { console.log("Listening!") });
 
 function isEmptyObject(obj: any) {
     for (let i in obj) return false;
