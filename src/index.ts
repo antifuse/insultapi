@@ -133,7 +133,7 @@ app.get("/api/submitters", (req, res) => {
     })
 });
 
-app.get("/api/submitter/:userid", (req, res) => {
+app.get("/api/submitters/:userid", (req, res) => {
     Submitter.findOne({ where: { userid: req.params.userid } }).then((result) => {
         if (result == null) res.sendStatus(404);
         else res.send(result);
@@ -143,7 +143,7 @@ app.get("/api/submitter/:userid", (req, res) => {
     });
 });
 
-app.post("/api/submitter/:userid/addInsult", (req, res) => {
+app.post("/api/submitters/:userid/addInsult", (req, res) => {
     if (!req.body.content) res.sendStatus(400);
     else {
         Submitter.findOne({ where: { userid: req.params.userid } }).then((value) => {
@@ -167,15 +167,15 @@ app.post("/api/submitter/:userid/addInsult", (req, res) => {
     }
 });
 
-app.post("/api/addInsult", (req, res) => {
+app.post("/api/insults", (req, res) => {
     if (!req.body.content) res.sendStatus(400);
     Insult.findAll().then((insults) => {
         let similarity = stringSimilarity.findBestMatch(req.body.content.toLowerCase(), insults.map((element) => element.content.toLowerCase()));
         if (similarity.bestMatch.rating > 0.8) {
             res.status(409).send(similarity.bestMatch.target);
         } else {
-            Insult.create({ content: req.body.content }).then((newResource) => {
-                res.send(newResource);
+            Insult.create({ content: req.body.content, by: req.body.by || null }).then((newResource) => {
+                res.status(201).header("Location", "/api/insults/" + newResource.iid).send(newResource);
             });
         }
     }).catch((reason)=>{
@@ -198,7 +198,7 @@ app.get("/api/insults", (req, res) => {
     })
 });
 
-app.get("/api/insult/:iid", (req, res) => {
+app.get("/api/insults/:iid", (req, res) => {
     Insult.findOne({ where: { iid: req.params.iid } }).then((result) => {
         if (result == null) res.sendStatus(404);
         else res.send(result);
@@ -207,10 +207,10 @@ app.get("/api/insult/:iid", (req, res) => {
     });
 });
 
-app.delete("/api/insult/:iid", (req, res) => {
+app.delete("/api/insults/:iid", (req, res) => {
     Insult.findOne({ where: { iid: req.params.iid } }).then((result) => {
         if (result == null) res.sendStatus(404);
-        else result.destroy().then(() => res.send(result));
+        else result.destroy().then(() => res.sendStatus(204));
     }).catch((reason) => {
         res.sendStatus(500);
     });
