@@ -1,21 +1,18 @@
 import express = require("express");
-import { Sequelize, DataTypes, SequelizeScopeError } from "sequelize";
+import { Sequelize, DataTypes, SequelizeScopeError, Op } from "sequelize";
 import * as winston from "winston";
 import { Insult } from "./InsultModel";
 import { Submitter } from "./SubmitterModel";
 import * as fs from "fs";
 import * as stringSimilarity from "string-similarity";
+import { Where } from "sequelize/types/lib/utils";
 const app = express();
-
-app.use((req, res, next) => {
-    if (!req.headers["content-type"]) req.headers["content-type"] = "none/none";
-    next();
-});
 app.use(express.json({ type: '*/*' }));
-app.use(express.urlencoded());
+app.use(express.urlencoded({extended: true}));
 app.use((req, res, next) => {
     let body = isEmptyObject(req.body) ? req.query : req.body;
     req.body = body;
+    res.setHeader("Access-Control-Allow-Origin","*");
     log.info(`Received ${req.path} request from IP ${req.ip}. Processing...`);
     next();
 });
@@ -87,19 +84,8 @@ Submitter.hasMany(Insult, {
     foreignKey: "by"
 });
 
-interface submitterquery {
-    sid?: number,
-    userid?: string,
-    free?: boolean,
-    authcode?: string
-}
-
-interface insultquery {
-    iid?: number,
-    content?: string,
-    used?: number,
-    by?: number
-}
+const submitterQueryAttrs = [["sid", "number"], ["userid", "string"], ["free", "boolean"], ["authcode", "string"]];
+const insultQueryAttrs = [["iid", "number"], ["content", "string"], ["used", "number"], ["by", "number"]];
 
 app.get("/api/generateKeys", (req, res) => {
     let count = req.body.count || 1;
@@ -119,12 +105,7 @@ app.get("/api/generateKeys", (req, res) => {
 });
 
 app.get("/api/submitters", (req, res) => {
-    let query: submitterquery = {};
-    if (req.body.authcode !== undefined) query.authcode = req.body.authcode;
-    if(req.body.free !== undefined) query.free = req.body.free;
-    if(req.body.sid !== undefined) query.sid = req.body.sid;
-    if(req.body.userid !== undefined) query.userid = req.body.userid;
-    Submitter.findAll({ where: query }).then((results) => {
+    Submitter.findAll({ where: toQuery(req.body, submitterQueryAttrs) }).then((results) => {
         if (results.length == 0) res.sendStatus(404);
         else res.send(results);
     }).catch((reason) => {
@@ -134,7 +115,7 @@ app.get("/api/submitters", (req, res) => {
 });
 
 app.get("/api/submitters/:userid", (req, res) => {
-    Submitter.findOne({ where: { userid: req.params.userid } }).then((result) => {
+    Submitter.findOne({ where: { userid: req.params.userid }}).then((result) => {
         if (result == null) res.sendStatus(404);
         else res.send(result);
     }).catch((reason) => {
@@ -185,12 +166,7 @@ app.post("/api/insults", (req, res) => {
 });
 
 app.get("/api/insults", (req, res) => {
-    let query: insultquery = {};
-    if (req.body.by !== undefined) query.by = req.body.by;
-    if (req.body.content !== undefined) query.content = req.body.content;
-    if (req.body.iid !== undefined) query.iid = req.body.iid;
-    if (req.body.used !== undefined) query.used = req.body.used;
-    Insult.findAll({ where: query }).then((results) => {
+    Insult.findAll({ where: toQuery(req.body, insultQueryAttrs) }).then((results) => {
         if (results.length == 0) res.sendStatus(404);
         else res.send(results);
     }).catch((reason) => {
@@ -225,4 +201,22 @@ app.listen(config.port, () => { console.log("Listening!") });
 function isEmptyObject(obj: any) {
     for (let i in obj) return false;
     return true;
+}
+
+function toQuery(body: any, queryParams: string[][]) {
+    let query: any = {};
+    for (let key in body) {
+        let param = queryParams.find((element)=> element[0] == key)
+        if (param) {
+            if (body[key] == null) query[key] = null;
+            else if (param[1] == "string") query[key] = {[Op.iLike]: body[key]};
+            else if (param[1] == "number") {if(!isNaN(parseInt(body[key]))) query[key] = body[key];}
+            else if (param[1] == "boolean") { 
+                let val = typeof body[key] == "boolean" ? body[key] : body[key] == "true" ? true : body[key] == "false" ? false : body[key] == "null" ? null : undefined;
+                if (val !== undefined) query[key] = val;
+            } 
+            else query[key] = body[key];
+        }
+    }
+    return query;
 }
