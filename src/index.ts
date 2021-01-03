@@ -13,6 +13,7 @@ app.use((req, res, next) => {
     let body = isEmptyObject(req.body) ? req.query : req.body;
     req.body = body;
     res.setHeader("Access-Control-Allow-Origin","*");
+    res.setHeader("Access-Control-Allow-Headers", "Content-Type")
     log.info(`Received ${req.path} request from IP ${req.ip}. Processing...`);
     next();
 });
